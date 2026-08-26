@@ -47,6 +47,6 @@ The datasets are generated using a Central Composite Design (CCD) framework with
   * Like the 10% mixture, it shows excellent macro-structural resistance to permanent deformation with 0 mm/mm plastic strain across the matrix.
   * Highest torque achieved: 1175.01 N-m (Design Point 5).
 
-Would you like me to generate a summary of the best-performing design configurations for each dataset to include in an "Optimal Results" section?
+
 
 
