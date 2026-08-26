@@ -1,6 +1,6 @@
 # Brake Pad Design Optimization Project
 
-This project leverages Design of Experiments (DoE) and Latin Hypercube Sampling to optimize the performance parameters of brake pads under varied material compositions, specifically evaluating 5%, 10%, and 15% Cocopeat mixtures. The experimental data tracks structural performance metrics across different geometric and force configurations to minimize stress and plastic strain while optimizing torque delivery.
+This project leverages Design of Experiments (DoE) and Latin Hypercube Sampling to optimize the performance parameters of brake pads under varied material compositions, specifically evaluating 5%, 10%, and 15% Cocopeat mixtures. The experimental data tracks structural performance metrics across different geometric and force configurations to optimizing torque delivery.
 
 ## Project Structure
 
