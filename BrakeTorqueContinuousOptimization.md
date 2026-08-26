@@ -23,74 +23,100 @@ To search the continuous design space, define an objective function that returns
 
 ## Continuous optimization code
 
-Run this cell after the cells that create `X`, `scaler_X`, and `best_gpr`:
+The notebook runs this cell after the cells that create `X`, `scaler_X`, `best_gpr`, and `features`:
 
 ```python
 from scipy.optimize import differential_evolution
 
-# Keep the search inside the range represented by the training data.
-feature_bounds = [
-    (X["percentage"].min(), X["percentage"].max()),
-    (X["InnerDiameter"].min(), X["InnerDiameter"].max()),
-    (X["ActuationForce"].min(), X["ActuationForce"].max()),
-    (X["SweepAngle"].min(), X["SweepAngle"].max()),
-]
+features = ['percentage', 'InnerDiameter', 'ActuationForce', 'SweepAngle']
+feature_units = {
+    'percentage': '%',
+    'InnerDiameter': 'mm',
+    'ActuationForce': 'N',
+    'SweepAngle': 'degree',
+}
+
+# Keep the search inside the observed design space.
+bounds = [(X[feature].min(), X[feature].max()) for feature in features]
 
 
-def negative_predicted_torque(feature_values):
-    candidate = pd.DataFrame(
-        [feature_values],
-        columns=["percentage", "InnerDiameter", "ActuationForce", "SweepAngle"],
-    )
+def objective(values):
+    candidate = pd.DataFrame([values], columns=features)
     candidate_scaled = scaler_X.transform(candidate)
     predicted_torque = best_gpr.predict(candidate_scaled)[0]
-    return -predicted_torque
+    return -predicted_torque  # differential_evolution minimizes
 
 
-optimization_result = differential_evolution(
-    negative_predicted_torque,
-    bounds=feature_bounds,
+optimization = differential_evolution(
+    objective,
+    bounds=bounds,
     seed=42,
     polish=True,
 )
 
-optimal_features = pd.Series(
-    optimization_result.x,
-    index=["percentage", "InnerDiameter", "ActuationForce", "SweepAngle"],
+# Predict torque and uncertainty at the best continuous candidate.
+optimal_candidate = pd.DataFrame([optimization.x], columns=features)
+optimal_candidate_scaled = scaler_X.transform(optimal_candidate)
+torque_mean, torque_std = best_gpr.predict(
+    optimal_candidate_scaled,
+    return_std=True,
 )
-maximum_torque = -optimization_result.fun
 
-print("Continuous optimum:")
-print(optimal_features)
-print(f"Predicted maximum braking torque: {maximum_torque:.2f} N-m")
-print(f"Optimization successful: {optimization_result.success}")
+optimal_torque = float(torque_mean[0])
+uncertainty = float(torque_std[0])
+torque_lower = optimal_torque - 1.96 * uncertainty
+torque_upper = optimal_torque + 1.96 * uncertainty
+continuous_optimum = dict(zip(features, optimization.x))
 ```
 
 ## How the code works
 
-1. `feature_bounds` limits every feature to its observed minimum and maximum. This avoids asking the surrogate model to extrapolate far outside the available data.
-2. `negative_predicted_torque` converts the optimizer's numeric input into a one-row `DataFrame` with the same feature order used during training.
+1. `bounds` limits every feature to its observed minimum and maximum. This avoids asking the surrogate model to extrapolate far outside the available data.
+2. `objective` converts the optimizer's numeric input into a one-row `DataFrame` with the same feature order used during training.
 3. `scaler_X.transform` applies the already-fitted feature scaling. The optimizer must use the same scaler as the GPR model.
 4. `best_gpr.predict` estimates the braking torque for the continuous candidate point.
 5. `differential_evolution` searches the whole bounded four-dimensional region without requiring gradients. `polish=True` performs a local refinement near the best candidate.
-6. The negative objective is converted back with `-optimization_result.fun`, giving the predicted maximum torque.
+6. The optimized feature values are evaluated again with `return_std=True` so the result includes prediction uncertainty.
 
-## Checking prediction uncertainty
+## Displaying the results
 
-A high predicted torque is more trustworthy when the GPR uncertainty is also low. The following optional check reports the model's standard deviation at the proposed optimum:
+The notebook separates the recommended design from the model diagnostics. This makes it easier to read the feature settings without confusing their physical bounds with the torque confidence interval.
 
 ```python
-optimal_scaled = scaler_X.transform(optimal_features.to_frame().T)
-optimal_mean, optimal_std = best_gpr.predict(optimal_scaled, return_std=True)
+optimal_design = pd.DataFrame({
+    'Parameter': features,
+    'Unit': [feature_units[feature] for feature in features],
+    'Lower Bound': [bound[0] for bound in bounds],
+    'Optimal Value': [continuous_optimum[feature] for feature in features],
+    'Upper Bound': [bound[1] for bound in bounds],
+})
 
-print(f"Predicted torque: {optimal_mean[0]:.2f} N-m")
-print(f"Prediction standard deviation: {optimal_std[0]:.2f} N-m")
-print(
-    f"Approximate 95% interval: "
-    f"{optimal_mean[0] - 1.96 * optimal_std[0]:.2f} to "
-    f"{optimal_mean[0] + 1.96 * optimal_std[0]:.2f} N-m"
-)
+optimization_summary = pd.DataFrame({
+    'Metric': [
+        'Predicted braking torque',
+        'Prediction standard deviation',
+        'Approximate 95% lower limit',
+        'Approximate 95% upper limit',
+        'Optimization successful',
+    ],
+    'Value': [
+        f'{optimal_torque:.3f}',
+        f'{uncertainty:.3f}',
+        f'{torque_lower:.3f}',
+        f'{torque_upper:.3f}',
+        'Yes' if optimization.success else 'No',
+    ],
+    'Unit': ['N-m', 'N-m', 'N-m', 'N-m', ''],
+})
+
+print('Continuous optimum design')
+display(optimal_design.round(3).reset_index(drop=True))
+
+print('Optimization result')
+display(optimization_summary)
 ```
+
+The design table reports each feature's observed range and the continuous value selected by the optimizer. The result table reports the predicted torque, its standard deviation, an approximate 95% interval, and whether the optimizer completed successfully. The notebook uses `round(3)` and formatted strings for readable output without requiring pandas' optional styling dependencies.
 
 The result is the maximum predicted torque of the surrogate model within the selected bounds, not a replacement for physical or FEA validation. The final feature combination should be validated with a new simulation or experiment.
 
