@@ -15,7 +15,7 @@ The datasets are generated using a Central Composite Design (CCD) framework with
 
 ### Input Parameters (Design Variables)
 
-  * **P1 - Inner Diameter:** Outer boundary constraint for the internal ring geometry.
+  * **P1 - Inner Diameter (mm):** Outer boundary constraint for the internal ring geometry.
   * **P7 - Joint Force Magnitude (N):** Operational loading force applied to the brake pad assembly.
   * **P9 - Parameter 1 (degree):** Angular orientation/geometric parameter.
   * **P10 - Parameter 2 (radian):** Rotational geometry or directional parameter.
